@@ -1,0 +1,474 @@
+
+/*———————————— iFRAME  —————————————————*/
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drag and Drop</title>
+    <style>
+        @font-face {
+            font-family: 'Proxima Nova';
+            src: url('https://your-font-url/ProximaNova-Regular.woff2') format('woff2'),
+                 url('https://your-font-url/ProximaNova-Bold.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'RoundyFont';
+            src: url('https://your-font-url/RoundyFont-Regular.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        .dropzone-container {
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            gap: 10px;
+        }
+        .dropzone {
+            border: 2px dashed #C6D3E9;
+            border-radius: 5px;
+            width: 97%;
+            height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-align: center;
+            font-family: 'Proxima Nova', sans-serif;
+            color: #6A7A8F;
+            transition: width 0.3s, height 0.3s, background-color 0.3s, color 0.3s;
+            flex-shrink: 0;
+        }
+        .dropzone.small {
+            width: 120px;
+            height: 120px;
+        }
+        .dropzone.hover {
+            border-color: #777777;
+            background-color: #F1F6FC;
+        }
+        .dropzone.hover .add-photos,
+        .dropzone.hover .drag-drop {
+            display: none;
+        }
+        .dropzone .add-photos {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .dropzone .drag-drop {
+            font-size: 14px;
+            font-weight: normal;
+        }
+        .dropzone .plus-icon {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .dropzone .drop-here {
+            display: none;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .dropzone.hover .drop-here {
+            display: block;
+        }
+        .preview {
+            display: flex;
+            gap: 5px;
+            flex-shrink: 0;
+        }
+        .preview .image-container {
+            position: relative;
+            margin: 5px;
+            border-radius: 5px;
+            flex-shrink: 0;
+            cursor: move;
+            overflow: hidden;
+            transition: filter 0.3s;
+        }
+        .preview .image-container:hover img {
+            filter: blur(3px);
+        }
+        .preview .image-container:hover .delete-btn,
+        .preview .image-container:hover .main-photo-label {
+            filter: none;
+        }
+        .preview img {
+            width: 120px;
+            height: 120px;
+            border-radius: 5px;
+            object-fit: cover;
+        }
+        .preview .delete-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(255, 255, 255, 0.7);
+            color: #333333;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            visibility: hidden;
+            font-family: 'RoundyFont', sans-serif;
+            font-size: 20px;
+            line-height: 25px;
+        }
+        .preview .image-container:hover .delete-btn {
+            visibility: visible;
+        }
+        .main-photo-label {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #F1F6FC;
+            color: #6A7A8F;
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 30px;
+            font-family: 'Proxima Nova', sans-serif;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .error-message {
+            color: #ff0000;
+            font-family: 'Proxima Nova', sans-serif;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .loading-bar {
+            position: absolute;
+            bottom: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50%;
+            height: 6px;
+            background: #F1F6FC;
+            border-radius: 5px;
+            overflow: hidden;
+            padding: 2px;
+        }
+        .loading-bar-inner {
+            height: 100%;
+            background: #00ADE7;
+            width: 0;
+        }
+        .dz-success-mark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+            width: 20px;
+            height: 20px;
+        }
+        .dz-success-mark.show {
+            opacity: 1;
+            transform: translate(-50%, -60%);
+        }
+    </style>
+</head>
+<body>
+    <div class="dropzone-container">
+        <div class="dropzone" id="dropzone">
+            <div class="plus-icon">+</div>
+            <span class="add-photos">Add photos</span>
+            <span class="drag-drop">or drag and drop</span>
+            <span class="drop-here">Drop photos here</span>
+        </div>
+        <div class="preview" id="preview"></div>
+    </div>
+    <input type="file" id="fileInput" multiple style="display: none;">
+    <div class="error-message" id="errorMessage"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const dropzone = document.getElementById('dropzone');
+            const fileInput = document.getElementById('fileInput');
+            const preview = document.getElementById('preview');
+            const errorMessage = document.getElementById('errorMessage');
+            let filesToUpload = [];
+            const MAX_FILES = 30;
+            const ALLOWED_FORMATS = ['image/jpeg', 'image/png'];
+            const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15 MB
+
+            dropzone.addEventListener('click', () => fileInput.click());
+
+            dropzone.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                dropzone.classList.add('hover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('hover');
+            });
+
+            dropzone.addEventListener('drop', (event) => {
+                event.preventDefault();
+                dropzone.classList.remove('hover');
+                const files = event.dataTransfer.files;
+                handleFiles(files);
+            });
+
+            fileInput.addEventListener('change', (event) => {
+                const files = event.target.files;
+                handleFiles(files);
+            });
+
+            function handleFiles(files) {
+                errorMessage.textContent = '';
+
+                Array.from(files).forEach(file => {
+                    if (!ALLOWED_FORMATS.includes(file.type)) {
+                        errorMessage.textContent = 'Only JPEG and PNG formats are allowed.';
+                        return;
+                    }
+
+                    if (file.size > MAX_FILE_SIZE) {
+                        errorMessage.textContent = 'Each file must be less than 15 MB.';
+                        return;
+                    }
+
+                    if (filesToUpload.some(f => f.name === file.name)) {
+                        errorMessage.textContent = 'Duplicate files are not allowed.';
+                        return;
+                    }
+
+                    if (filesToUpload.length >= MAX_FILES) {
+                        errorMessage.textContent = `You can only upload up to ${MAX_FILES} photos.`;
+                        return;
+                    }
+
+                    filesToUpload.push(file);
+
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const imgContainer = document.createElement('div');
+                        imgContainer.classList.add('image-container');
+                        
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        imgContainer.appendChild(img);
+                        
+                        const deleteBtn = document.createElement('button');
+                        deleteBtn.classList.add('delete-btn');
+                        deleteBtn.innerHTML = '&times;';
+                        deleteBtn.onclick = () => {
+                            preview.removeChild(imgContainer);
+                            filesToUpload = filesToUpload.filter(f => f.name !== file.name);
+                            sendFilesToParent();
+                            updateMainPhotoLabel();
+                            updateDropzoneText();
+                        };
+                        imgContainer.appendChild(deleteBtn);
+
+                        preview.appendChild(imgContainer);
+                        updateMainPhotoLabel();
+                        updateDropzoneText();
+                    };
+                    reader.readAsDataURL(file);
+                    
+                    // Upload the file immediately
+                    reader.onloadend = () => {
+                        const fileContent = reader.result.split(',')[1];
+                        const fileName = file.name;
+                        window.parent.postMessage({ uploadFile: { fileContent, fileName } }, '*');
+                    };
+                });
+            }
+
+            function sendFilesToParent() {
+                const filesArray = filesToUpload.map(file => ({
+                    name: file.name,
+                    type: file.type,
+                    size: file.size,
+                    lastModified: file.lastModified,
+                    content: file
+                }));
+                const reorderedFilesArray = Array.from(preview.children).map((imgContainer, index) => {
+                    const imgElement = imgContainer.querySelector('img');
+                    if (imgElement) {
+                        const imgSrc = imgElement.src;
+                        const file = filesArray.find(file => imgSrc.includes(file.name));
+                        return { ...file, position: index + 1 };
+                    }
+                }).filter(file => file !== undefined);
+                window.parent.postMessage({ newFiles: reorderedFilesArray, numberOfPhotos: preview.children.length }, '*');
+                console.log("Session Photos:", reorderedFilesArray);
+            }
+
+            new Sortable(preview, {
+                animation: 150,
+                onEnd: () => {
+                    sendFilesToParent();
+                    updateMainPhotoLabel();
+                }
+            });
+
+            function updateMainPhotoLabel() {
+                const containers = document.querySelectorAll('.image-container');
+                containers.forEach((container, index) => {
+                    const label = container.querySelector('.main-photo-label');
+                    if (label) {
+                        container.removeChild(label);
+                    }
+                    const photoLabel = document.createElement('div');
+                    photoLabel.classList.add('main-photo-label');
+                    if (index === 0) {
+                        photoLabel.textContent = 'Main photo';
+                    } else {
+                        photoLabel.textContent = `${index + 1}`;
+                    }
+                    container.appendChild(photoLabel);
+                });
+            }
+
+            function updateDropzoneText() {
+                if (preview.children.length > 0) {
+                    dropzone.classList.add('small');
+                    dropzone.innerHTML = `
+                        <div class="plus-icon">+</div>
+                        <span class="add-more-photos">Add more<br>photos</span>
+                    `;
+                } else {
+                    dropzone.classList.remove('small');
+                    dropzone.innerHTML = `
+                        <div class="plus-icon">+</div>
+                        <span class="add-photos">Add photos</span>
+                        <span class="drag-drop">or drag and drop</span>
+                        <span class="drop-here">Drop photos here</span>
+                    `;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+/*———————————— FRONT END: —————————————————*/
+
+
+
+
+import { uploadFile } from 'backend/uploadFile';
+
+let carData = {
+    photos: [], 
+    thumbnail: [],
+    numberOfPhotos: 0,
+};
+
+$w.onReady(function () {
+    let sessionPhotos = [];
+    let carData = { photos: [], numberOfPhotos: 0, thumbnail: "" };
+
+    $w("#htmlWidget").onMessage((event) => {
+        if (event.data.uploadFile) {
+            handleFileUpload(event.data.uploadFile);
+        } else if (event.data.newFiles) {
+            updateSessionPhotos(event.data.newFiles);
+        }
+    });
+
+    function handleFileUpload(file) {
+        const { fileContent, fileName } = file;
+        uploadFile(fileContent, fileName, "User Uploaded Photos")
+            .then(uploadedFile => {
+                console.log("File uploaded successfully:", uploadedFile);
+
+                const fileUrl = `wix:image://v1/${uploadedFile.fileName}/${fileName}#originWidth=600&originHeight=400`;
+                const mediaGalleryEntry = {
+                    description: "",
+                    slug: uploadedFile.fileName,
+                    alt: "",
+                    src: fileUrl,
+                    title: fileName,
+                    type: 'image',
+                    settings: {
+                        width: 600,
+                        height: 400,
+                        focalPoint: [0.5, 0.5]
+                    }
+                };
+
+                const photoData = {
+                    name: fileName,
+                    position: sessionPhotos.length + 1,
+                    url: fileUrl
+                };
+
+                sessionPhotos.push(photoData);
+                carData.photos.push(mediaGalleryEntry);
+                carData.numberOfPhotos = carData.photos.length;
+                updateThumbnailAndLog();
+            })
+            .catch(error => {
+                console.error("File upload failed:", error);
+            });
+    }
+
+    function updateSessionPhotos(newFiles) {
+        sessionPhotos = newFiles.map(file => ({
+            name: file.name,
+            position: file.position,
+            url: `wix:image://v1/${file.name}/${file.name}#originWidth=600&originHeight=400`
+        }));
+        carData.photos = sessionPhotos.map(photo => ({
+            description: "",
+            slug: photo.name,
+            alt: "",
+            src: photo.url,
+            title: photo.name,
+            type: 'image',
+            settings: {
+                width: 600,
+                height: 400,
+                focalPoint: [0.5, 0.5]
+            }
+        }));
+        carData.numberOfPhotos = carData.photos.length;
+        updateThumbnailAndLog();
+    }
+
+    function updateThumbnailAndLog() {
+        const firstPhoto = carData.photos[0];
+        if (firstPhoto) {
+            carData.thumbnail = firstPhoto.src;
+        } else {
+            carData.thumbnail = "";
+        }
+        console.log("Updated carData object:", carData);
+        console.log("Session Photos:", sessionPhotos);
+    }
+});
+       /*———————————— BACK END —————————————————*/
+
+import { mediaManager } from 'wix-media-backend';
+
+export function uploadFile(fileContent, fileName) {
+    return mediaManager.upload("image", Buffer.from(fileContent, 'base64'), fileName)
+        .then((result) => {
+            return {
+                fileName: result.fileName,
+                mediaUrl: result.fileUrl,
+            };
+        })
+        .catch((error) => {
+            throw new Error("File upload failed: " + error.message);
+        });
+}
